@@ -1,0 +1,25 @@
+sudo: true
+
+dist: trusty
+
+cache:
+  directories:
+    - $HOME/.ivy2
+    - $HOME/.sbt
+
+language: scala
+scala: 2.11.8
+jdk: oraclejdk8
+
+services:
+  - docker
+
+after_success:
+  - docker stop $(docker ps -a -q)
+
+after_failure:
+  - docker stop $(docker ps -a -q)
+
+branches:
+  only:
+    - master
