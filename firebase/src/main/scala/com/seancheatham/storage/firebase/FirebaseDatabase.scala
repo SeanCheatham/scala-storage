@@ -306,12 +306,18 @@ class FirebaseDatabase(private val config: Config) extends DocumentStorage[JsVal
 object FirebaseDatabase {
 
   /**
+    * The default instance
+    */
+  lazy val default =
+    new FirebaseDatabase(ConfigFactory.load())
+
+  /**
     * Constructs a [[FirebaseDatabase]] using the default Typesafe config
     *
     * @return a [[FirebaseDatabase]]
     */
   def apply(): FirebaseDatabase =
-    new FirebaseDatabase(ConfigFactory.load())
+    default
 
   /**
     * Constructs a [[FirebaseDatabase]] using the provided configuration

@@ -20,7 +20,8 @@ lazy val core =
     .in(file("core"))
     .settings(commonSettings: _*)
     .settings(
-      name := "storage-core"
+      name := "storage-core",
+      libraryDependencies ++= Dependencies.playJson.map(_ % Test)
     )
 
 lazy val firebase =
@@ -33,4 +34,4 @@ lazy val firebase =
         Dependencies.playJson ++
           Dependencies.firebase
     )
-    .dependsOn(core)
+    .dependsOn(core % "compile->compile;test->test")
