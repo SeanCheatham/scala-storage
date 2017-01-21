@@ -1,6 +1,6 @@
 Database and Binary Storage Interface with adapter(s), written in Scala
 
-[![Build Status](https://travis-ci.org/SeanCheatham/scala-storage-wrappers.svg?branch=master)](https://travis-ci.org/SeanCheatham/scala-storage-wrappers)
+[![Build Status](https://travis-ci.org/SeanCheatham/scala-storage.svg?branch=master)](https://travis-ci.org/SeanCheatham/scala-storage)
 
 # Overview
 This library serves two purposes:
