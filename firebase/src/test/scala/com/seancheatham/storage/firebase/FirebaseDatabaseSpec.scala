@@ -8,9 +8,39 @@ class FirebaseDatabaseSpec extends JsonDocumentStorageSpec(FirebaseDatabase()) {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   "Firebase" can {
+    val db = FirebaseDatabase()
+
+    "observe a value" in {
+      var value: Option[JsValue] =
+        None
+
+      val id =
+        db.watchValue(testBucketName, "someValue")(
+          ValueChangedHandler(
+            (v: JsValue) =>
+              value = Some(v)
+          ),
+          ValueRemovedHandler(
+            () => value = None
+          )
+        )()
+
+      db.write(testBucketName, "someValue")(JsString("test")).await
+      Thread.sleep(3000)
+      assert(value contains JsString("test"))
+
+      db.delete(testBucketName, "someValue").await
+      Thread.sleep(3000)
+      assert(value.isEmpty)
+
+      db.unwatchValue(id)
+
+      assert {
+        true
+      }
+    }
 
     "observe an array" in {
-      val db = FirebaseDatabase()
 
       import scala.collection.mutable
 
@@ -19,8 +49,10 @@ class FirebaseDatabaseSpec extends JsonDocumentStorageSpec(FirebaseDatabase()) {
 
       val id =
         db.watchCollection(testBucketName, "someArray")(
-          (_: String, v: JsValue) => newItems += v.as[String]
-        )
+          ChildAddedHandler(
+            (_: String, v: JsValue) => newItems += v.as[String]
+          )
+        )()
 
       Thread.sleep(3000)
 
@@ -33,14 +65,18 @@ class FirebaseDatabaseSpec extends JsonDocumentStorageSpec(FirebaseDatabase()) {
 
       db.unwatchCollection(id)
 
-      assert(true)
+      assert {
+        true
+      }
 
     }
 
     "cleanup again" in {
       db.delete(testBucketName)
 
-      assert(true)
+      assert {
+        true
+      }
     }
 
   }

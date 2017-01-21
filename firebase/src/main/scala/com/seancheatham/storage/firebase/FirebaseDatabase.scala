@@ -138,6 +138,86 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
     p.future
   }
 
+  /**
+    * A Mapping from (Watcher ID -> (Firebase Event Listener, Firebase key path))
+    */
+  private val valueWatchers =
+    TrieMap.empty[String, (ValueEventListener, String)]
+
+  /**
+    * Firebase provides functionality to attach listeners to nodes in its Realtime Database.  This method
+    * attaches a listener to the node at the given bucket+key, and whenever the node changes or is deleted, the given
+    * handlers will be called when relevant.
+    *
+    * NOTE: This method has a side-effect
+    *
+    * TODO: How do we ensure old/unused listeners get cleaned up when a client terminates
+    *
+    * @param key           The key path to the item
+    * @param handlers      A collection of ValueHandlers to apply
+    * @param cancelHandler A special handler called when the listener is canceled or disconnected.  If this event occurs,
+    *                      the watcher will automatically be unwatched/removed, so there is no need to do it in this
+    *                      step.  The default handler does nothing.
+    * @return An identifier for the watcher, to be used when removing the watcher
+    */
+  def watchValue(key: String*)
+                (handlers: ValueHandler*)
+                (cancelHandler: Cancelled = Cancelled((_: DatabaseError) => ())): String = {
+    val id =
+      UUID.randomUUID().toString
+    val listener =
+      new ValueEventListener {
+        def onDataChange(dataSnapshot: DataSnapshot): Unit = {
+          anyToJson(dataSnapshot.getValue()).toOption match {
+            case Some(value) =>
+              handlers
+                .collect {
+                  case ValueChangedHandler(handler) =>
+                    handler
+                }
+                .foreach(_.apply(value))
+            case _ =>
+              handlers
+                .collect {
+                  case ValueRemovedHandler(handler) =>
+                    handler
+                }
+                .foreach(_.apply())
+          }
+        }
+
+        def onCancelled(databaseError: DatabaseError): Unit = {
+          unwatchValue(id)
+          cancelHandler.handler(databaseError)
+        }
+      }
+
+    val keyified =
+      key.keyify
+    valueWatchers.update(id, (listener, keyified))
+    database.getReference(keyified).addValueEventListener(listener)
+    id
+  }
+
+  /**
+    * Removes a watcher by ID, as constructed in #watchValue(...)
+    *
+    * NOTE: This method has a side-effect
+    *
+    * @param id The ID of the watcher provided in #watchValue(...)
+    * @return Unit
+    */
+  def unwatchValue(id: String): Unit =
+    valueWatchers
+      .remove(id)
+      .foreach(
+        kv =>
+          database.getReference(kv._2).removeEventListener(kv._1)
+      )
+
+  /**
+    * A Mapping from (Watcher ID -> (Firebase Event Listener, Firebase key path))
+    */
   private val collectionWatchers =
     TrieMap.empty[String, (ChildEventListener, String)]
 
@@ -149,27 +229,61 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
     *
     * TODO: How do we ensure old/unused listeners get cleaned up when a client terminates
     *
-    * @param key The key path to the item
-    * @param f   A function which handles a newly added JsValue
+    * @param handlers      A collection of ChildHandlers to apply
+    * @param cancelHandler A special handler called when the listener is canceled or disconnected.  If this event occurs,
+    *                      the watcher will automatically be unwatched/removed, so there is no need to do it in this
+    *                      step.  The default handler does nothing.
     * @return An identifier for the watcher, to be used when removing the watcher
     */
-  def watchCollection(key: String*)(f: (String, JsValue) => _): String = {
+  def watchCollection(key: String*)
+                     (handlers: ChildHandler*)
+                     (cancelHandler: Cancelled = Cancelled((_: DatabaseError) => ())): String = {
     val id =
       UUID.randomUUID().toString
     val listener =
       new ChildEventListener {
-        def onChildRemoved(dataSnapshot: DataSnapshot): Unit = {}
+        def onChildRemoved(dataSnapshot: DataSnapshot): Unit = {
+          val key =
+            dataSnapshot.getKey
+          handlers
+            .collect {
+              case ChildRemovedHandler(handler) =>
+                handler
+            }
+            .foreach(_.apply(key))
+        }
 
         def onChildMoved(dataSnapshot: DataSnapshot, s: String): Unit = {}
 
-        def onChildChanged(dataSnapshot: DataSnapshot, s: String): Unit = {}
+        def onChildChanged(dataSnapshot: DataSnapshot, s: String): Unit = {
+          val key =
+            dataSnapshot.getKey
+          val value =
+            anyToJson(dataSnapshot.getValue())
+          handlers
+            .collect {
+              case ChildChangedHandler(handler) =>
+                handler
+            }
+            .foreach(_.apply(key, value))
+        }
 
-        def onCancelled(databaseError: DatabaseError): Unit = {}
+        def onCancelled(databaseError: DatabaseError): Unit = {
+          unwatchCollection(id)
+          cancelHandler.handler(databaseError)
+        }
 
         def onChildAdded(dataSnapshot: DataSnapshot, s: String): Unit = {
-          anyToJson(dataSnapshot.getValue())
-            .toOption
-            .foreach(f(dataSnapshot.getKey, _))
+          val key =
+            dataSnapshot.getKey
+          val value =
+            anyToJson(dataSnapshot.getValue())
+          handlers
+            .collect {
+              case ChildAddedHandler(handler) =>
+                handler
+            }
+            .foreach(_.apply(key, value))
         }
       }
     val keyified =
