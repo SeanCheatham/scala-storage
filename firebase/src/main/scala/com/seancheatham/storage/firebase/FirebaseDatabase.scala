@@ -1,6 +1,6 @@
 package com.seancheatham.storage.firebase
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, File, FileInputStream, InputStream}
 import java.util.{NoSuchElementException, UUID}
 
 import com.google.firebase.database.{ChildEventListener, DataSnapshot, DatabaseError, ValueEventListener}
@@ -22,43 +22,11 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   * append values to an "array" through their `push` concept.  Furthermore, they also provide a layer to "listen"
   * to an "array" (or object), asynchronously running callbacks for new items.
   *
-  * @param config a Typesafe Config object containing at least:
-  *               firebase.url
-  *               firebase.project_id
-  *               firebase.private_key_id
-  *               firebase.client_email
-  *               firebase.client_id
-  *               firebase.client_x509_cert_url
+  * @param app The FirebaseApp to use when connecting
   */
-class FirebaseDatabase(private val config: Config) extends DocumentStorage[JsValue] {
+class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsValue] {
 
   import com.google.firebase.database.{FirebaseDatabase => GFirebaseDatabase}
-
-  val baseUrl: String =
-    config.getString("firebase.url")
-      .ensuring(_ startsWith "https://")
-
-  private val firebaseConfiguration =
-    Json.obj(
-      "type" -> "service_account",
-      "project_id" -> config.getString("firebase.project_id"),
-      "private_key_id" -> config.getString("firebase.private_key_id"),
-      "private_key" -> config.getString("firebase.private_key"),
-      "client_email" -> config.getString("firebase.client_email"),
-      "client_id" -> config.getString("firebase.client_id"),
-      "auth_uri" -> "https://accounts.google.com/o/oauth2/auth",
-      "token_uri" -> "https://accounts.google.com/o/oauth2/token",
-      "auth_provider_x509_cert_url" -> "https://www.googleapis.com/oauth2/v1/certs",
-      "client_x509_cert_url" -> config.getString("firebase.client_x509_cert_url")
-    )
-
-  private val app =
-    FirebaseApp.initializeApp(
-      new FirebaseOptions.Builder()
-        .setServiceAccount(new ByteArrayInputStream(firebaseConfiguration.toString.toArray.map(_.toByte)))
-        .setDatabaseUrl(baseUrl)
-        .build()
-    )
 
   /**
     * An Admin Database reference to the Firebase Database
@@ -306,10 +274,79 @@ class FirebaseDatabase(private val config: Config) extends DocumentStorage[JsVal
 object FirebaseDatabase {
 
   /**
-    * The default instance
+    * The default instance, with the details provided by the default typesafe config loader
     */
-  lazy val default =
-    new FirebaseDatabase(ConfigFactory.load())
+  lazy val default: FirebaseDatabase =
+    fromConfig(ConfigFactory.load())
+
+  /**
+    * @param config a Typesafe Config object containing at least:
+    *               firebase.url
+    *               firebase.project_id
+    *               firebase.private_key_id
+    *               firebase.client_email
+    *               firebase.client_id
+    *               firebase.client_x509_cert_url
+    */
+  def fromConfig(config: Config): FirebaseDatabase = {
+    val baseUrl: String =
+      config.getString("firebase.url")
+        .ensuring(_ startsWith "https://")
+
+    if (config.hasPath("firebase.service_account_key_location"))
+      fromServiceAccountKey(
+        config.getString("firebase.service_account_key_location"),
+        baseUrl
+      )
+
+    else
+      apply(
+        baseUrl,
+        config.getString("firebase.project_id"),
+        config.getString("firebase.private_key_id"),
+        config.getString("firebase.private_key"),
+        config.getString("firebase.client_email"),
+        config.getString("firebase.client_id"),
+        config.getString("firebase.client_x509_cert_url")
+      )
+  }
+
+  /**
+    * Constructs a FirebaseDatabase from a Service Account credentials file (path)
+    *
+    * @param path    the path to the service account credentials
+    * @param baseUrl the base URL of the database
+    * @return a FirebaseDatabase
+    */
+  def fromServiceAccountKey(path: String, baseUrl: String): FirebaseDatabase =
+    fromServiceAccountKey(new FileInputStream(path), baseUrl)
+
+  /**
+    * Constructs a FirebaseDatabase from a Service Account credentials file
+    *
+    * @param file    the file with the service account credentials
+    * @param baseUrl the base URL of the database
+    * @return a FirebaseDatabase
+    */
+  def fromServiceAccountKey(file: File, baseUrl: String): FirebaseDatabase =
+    fromServiceAccountKey(new FileInputStream(file), baseUrl)
+
+  /**
+    * Constructs a FirebaseDatabase from a Service Account credentials (stream)
+    *
+    * @param inputStream the path to the service account credentials
+    * @param baseUrl     the base URL of the database
+    * @return a FirebaseDatabase
+    */
+  def fromServiceAccountKey(inputStream: InputStream, baseUrl: String): FirebaseDatabase =
+    new FirebaseDatabase(
+      FirebaseApp.initializeApp(
+        new FirebaseOptions.Builder()
+          .setServiceAccount(inputStream)
+          .setDatabaseUrl(baseUrl)
+          .build()
+      )
+    )
 
   /**
     * Constructs a [[FirebaseDatabase]] using the default Typesafe config
@@ -324,7 +361,46 @@ object FirebaseDatabase {
     *
     * @return a [[FirebaseDatabase]]
     */
-  def apply(config: Config) =
-    new FirebaseDatabase(config)
+  def apply(config: Config): FirebaseDatabase =
+    fromConfig(config)
+
+  /**
+    * Construct a FirebaseDatabase using the given configuration values
+    *
+    * @param baseUrl           The Base Path to the database
+    * @param projectId         The project ID
+    * @param privateKeyId      The project's private key ID
+    * @param privateKey        The project's private key
+    * @param clientEmail       The client email
+    * @param clientId          The client ID
+    * @param clientX509CertUrl The URL to the client x509 Certificate URL
+    * @return a FirebaseDatabase
+    */
+  def apply(baseUrl: String,
+            projectId: String,
+            privateKeyId: String,
+            privateKey: String,
+            clientEmail: String,
+            clientId: String,
+            clientX509CertUrl: String): FirebaseDatabase = {
+
+    val firebaseConfiguration =
+      Json.obj(
+        "type" -> "service_account",
+        "project_id" -> baseUrl,
+        "private_key_id" -> privateKeyId,
+        "private_key" -> privateKey,
+        "client_email" -> clientEmail,
+        "client_id" -> clientId,
+        "auth_uri" -> "https://accounts.google.com/o/oauth2/auth",
+        "token_uri" -> "https://accounts.google.com/o/oauth2/token",
+        "auth_provider_x509_cert_url" -> "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url" -> clientX509CertUrl
+      )
+    val inputStream =
+      new ByteArrayInputStream(firebaseConfiguration.toString.toArray.map(_.toByte))
+
+    fromServiceAccountKey(inputStream, baseUrl)
+  }
 
 }

@@ -10,3 +10,11 @@ jdk: oraclejdk8
 branches:
   only:
   - master
+before_install:
+- openssl aes-256-cbc -K $encrypted_7f5d77cd5a01_key -iv $encrypted_7f5d77cd5a01_iv
+  -in firebase.json.enc -out /tmp/firebase_credentials.json -d
+env:
+  matrix:
+  - FIREBASE_SERVICE_ACCOUNT_KEY_LOCATION=/tmp/firebase_credentials.json
+  global:
+    secure: Be9RBdqZM+nhaHr1r329ijFAw8Nzn0tJlM2hUr7ZGGjm4gG0WXQ+4HruqwmMCfr60nhC3vhTbGtVEPZp+y3zJofAA7A0YHlOSBHanR+OI1oJai+leKbN/hhR7nvVYXl5psrDOlN6lXxjmcZrqOwvX61iG9NZc338oGW2tp6pOdeRFL4qwUMQpPwpfIlJnEr4brf9bfE6YGM6J70U/hZsTfI96RI6bInI3ao2OIkU4438E8pM1sEdjih7zzC9eBYkLlzQxX38/45rK88CELGZT6OUjh8Y3ABA5VrDKJZw1TOPea981jeo0jrHoaXfVtc1nEDeCrHWaCzo7m5tLf3WKRoe4dUnXu5kbm2DxxlqZ6oh+XaMs+ow+KMpIa0naxy2bBfrYCZVzcyU1KYG/KIG8cYyMMp8nj6oH5EsK+aUDbC893ieM30TOIbgQGJKEh6ssZ8sopeB+9CFqsvgSTSQnYaiJmtC9B2w4eZqNYWvjYusa6vjAhgIfQD8UoYvrPv0Z7vS8ZP7YMSvX0GcMwW7Z8u5V1tgNWHUZiL3jtzm1lb3r0U/4O333Wpaf89LNMyw9fJOs3ZU90qEkZU+VPUONbNLGnOShnvEu4sMN68HEaKQHEq8YuVk8e2DgUAq76JKwXSI+8I53RsNT8cx8yCcFPkUZjvl92VNap1LtRWo/I8=
