@@ -5,8 +5,6 @@ import play.api.libs.json.{JsString, JsValue}
 
 class FirebaseDatabaseSpec extends JsonDocumentStorageSpec(FirebaseDatabase()) {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   "Firebase" can {
     val db = FirebaseDatabase()
 

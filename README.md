@@ -16,7 +16,7 @@ This library uses Typesafe's Play JSON library for serialization of content.  I 
 
 ## Include the library in your project.
 In your build.sbt:
-`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.0.2"`
+`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.1.1"`
 
 ## Connect to a Database
 ### Firebase
@@ -24,6 +24,9 @@ In your build.sbt:
 * Generate/Download a new Private Key
 * Store the key as you see fit, depending on your environment setup.  Just remember the path to it.
 ```scala
+// You will need to provide an ExecutionContext.  If you have one, use it, otherwise, you can use this:
+import scala.concurrent.ExecutionContext.Implicits.global
+
 import com.seancheatham.storage.firebase.FirebaseDatabase
 val db: FirebaseDatabase =
     FirebaseDatabase.fromServiceAccountKey("/path/to/key.json", "https://address-of-firebase-app.firebaseio.com")
@@ -60,6 +63,12 @@ Await.ready(readFuture, Duration.Inf).value.flatMap {
    case Failure(_: NoSuchElementException) => None
    case _ => None
 }
+```
+
+Alternatively, if you know the value is generally optional, you can _lift_ it instead.
+```scala
+val readOptionalFuture: Future[Option[JsValue]] =
+    db.lift("users", userId, "lastName")
 ```
 
 ## Merge a value

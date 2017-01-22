@@ -33,12 +33,12 @@ abstract class JsonDocumentStorageSpec(val db: DocumentStorage[JsValue],
     "read an optional value" in {
 
       val someResult =
-        db.getOpt(testBucketName, "item", "foo").await
+        db.lift(testBucketName, "item", "foo").await
 
       assert(someResult.get.as[Int] == 645)
 
       val emptyResult =
-        db.getOpt(testBucketName, "other").await
+        db.lift(testBucketName, "other").await
 
       assert(emptyResult.isEmpty)
 
@@ -102,6 +102,28 @@ abstract class JsonDocumentStorageSpec(val db: DocumentStorage[JsValue],
             false
         }
       )
+
+    }
+
+    "read an object's keys" in {
+
+      db.write(testBucketName, "someObject")(Json.obj("a" -> 1, "b" -> true)).await
+
+      val keys =
+        db.getChildKeys(testBucketName, "someObject").await.toSet
+
+      assert(keys == Set("a", "b"))
+
+    }
+
+    "read an array's keys" in {
+
+      db.write(testBucketName, "someObject", "childArray")(Json.arr(3, "six", false)).await
+
+      val arrayKeys =
+        db.getChildKeys(testBucketName, "someObject", "childArray").await.toSeq
+
+      assert(arrayKeys == Seq("0", "1", "2"))
 
     }
 

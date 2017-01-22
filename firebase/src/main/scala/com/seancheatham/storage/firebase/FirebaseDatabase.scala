@@ -3,7 +3,7 @@ package com.seancheatham.storage.firebase
 import java.io.{ByteArrayInputStream, File, FileInputStream, InputStream}
 import java.util.{NoSuchElementException, UUID}
 
-import com.google.firebase.database.{ChildEventListener, DataSnapshot, DatabaseError, ValueEventListener}
+import com.google.firebase.database.{ChildEventListener, DataSnapshot, DatabaseError, DatabaseReference, ValueEventListener}
 import com.google.firebase.tasks.{OnFailureListener, OnSuccessListener}
 import com.google.firebase.{FirebaseApp, FirebaseOptions}
 import com.seancheatham.storage.DocumentStorage
@@ -24,7 +24,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   *
   * @param app The FirebaseApp to use when connecting
   */
-class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsValue] {
+class FirebaseDatabase(private val app: FirebaseApp)(implicit ec: ExecutionContext) extends DocumentStorage[JsValue] {
 
   import FirebaseDatabase.{JsHelper, KeyHelper, anyToJson, jsonToAny}
   import com.google.firebase.database.{FirebaseDatabase => GFirebaseDatabase}
@@ -35,9 +35,9 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
   val database: GFirebaseDatabase =
     GFirebaseDatabase.getInstance(app)
 
-  def get(key: String*)(implicit ec: ExecutionContext): Future[JsValue] = {
+  def get(key: String*): Future[JsValue] = {
     val p = Promise[JsValue]()
-    database.getReference(key.keyify)
+    key.ref
       .addListenerForSingleValueEvent(
         new ValueEventListener {
           def onDataChange(dataSnapshot: DataSnapshot): Unit =
@@ -55,7 +55,7 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
     p.future
   }
 
-  def getCollection(key: String*)(implicit ec: ExecutionContext): Future[Iterator[JsValue]] =
+  def getCollection(key: String*): Future[Iterator[JsValue]] =
     get(key: _*)
       .recover {
         case _: NoSuchElementException =>
@@ -70,9 +70,9 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           Iterator.empty
       }
 
-  def write(key: String*)(value: JsValue)(implicit ec: ExecutionContext): Future[_] = {
+  def write(key: String*)(value: JsValue): Future[_] = {
     val p = Promise[Any]()
-    database.getReference(key.keyify)
+    key.ref
       .setValue(jsonToAny(value))
       .addOnSuccessListener(new OnSuccessListener[Void] {
         def onSuccess(tResult: Void): Unit =
@@ -83,15 +83,11 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
-    //      .flatMap(_ =>
-    //        testValue(key.keyify, _ contains value)
-    //      )
   }
 
-  def merge(key: String*)(value: JsValue)(implicit ec: ExecutionContext): Future[_] = {
+  def merge(key: String*)(value: JsValue): Future[_] = {
     val p = Promise[Any]()
-    val reference =
-      database.getReference(key.keyify)
+    val reference = key.ref
     (value match {
       case v: JsObject =>
         reference.updateChildren(jsonToAny(v).asInstanceOf[java.util.Map[String, AnyRef]])
@@ -110,9 +106,9 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
     p.future
   }
 
-  def delete(key: String*)(implicit ec: ExecutionContext): Future[_] = {
+  def delete(key: String*): Future[_] = {
     val p = Promise[Any]()
-    database.getReference(key.keyify)
+    key.ref
       .removeValue()
       .addOnSuccessListener(new OnSuccessListener[Void] {
         def onSuccess(tResult: Void): Unit =
@@ -123,13 +119,11 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
-    //      .flatMap(_ => testValue(key.keyify, _.isEmpty))
   }
 
-  def append(key: String*)(value: JsValue)(implicit ec: ExecutionContext): Future[String] = {
+  def append(key: String*)(value: JsValue): Future[String] = {
     val p = Promise[String]()
-    val reference =
-      database.getReference(key.keyify)
+    val reference = key.ref
     reference
       .push()
       .setValue(jsonToAny(value))
@@ -142,11 +136,25 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
-    //      .flatMap(id =>
-    //        testValue(key.keyify + "/" + id, _ contains value)
-    //          .map(_ => id)
-    //      )
   }
+
+  /**
+    * This isn't a very elegant implementation of this method.  Currently, the only way to retrieve a "shallow"
+    * copy of an object/array (meaning, just get its keys), is via the Firebase REST API.  However, using the
+    * rest API isn't currently feasible since it involves OAuth.
+    *
+    * If the value at a child is null or undefined, it will be ignored in the result.
+    */
+  def getChildKeys(key: String*): Future[Iterator[String]] =
+    lift(key: _*)
+      .map {
+        case Some(v: JsArray) =>
+          v.value.iterator.zipWithIndex.filterNot(_._1 == JsNull).map(_._2.toString)
+        case Some(v: JsObject) =>
+          v.fields.iterator.filterNot(_._2 == JsNull).map(_._1)
+        case _ =>
+          Iterator.empty
+      }
 
   /**
     * A Mapping from (Watcher ID -> (Firebase Event Listener, Firebase key path))
@@ -320,6 +328,11 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
             .removeEventListener(kv._1)
       )
 
+  private implicit class KeyRefHelper(key: Seq[String]) {
+    def ref: DatabaseReference =
+      database.getReference(key.keyify)
+  }
+
 }
 
 
@@ -329,7 +342,7 @@ object FirebaseDatabase {
     * The default instance, with the details provided by the default typesafe config loader
     */
   lazy val default: FirebaseDatabase =
-    fromConfig(ConfigFactory.load())
+    fromConfig(ConfigFactory.load())(scala.concurrent.ExecutionContext.Implicits.global)
 
   /**
     * @param config a Typesafe Config object containing at least:
@@ -340,7 +353,7 @@ object FirebaseDatabase {
     *               firebase.client_id
     *               firebase.client_x509_cert_url
     */
-  def fromConfig(config: Config): FirebaseDatabase = {
+  def fromConfig(config: Config)(implicit ec: ExecutionContext): FirebaseDatabase = {
     val baseUrl: String =
       config.getString("firebase.url")
         .ensuring(_ startsWith "https://")
@@ -370,7 +383,7 @@ object FirebaseDatabase {
     * @param baseUrl the base URL of the database
     * @return a FirebaseDatabase
     */
-  def fromServiceAccountKey(path: String, baseUrl: String): FirebaseDatabase =
+  def fromServiceAccountKey(path: String, baseUrl: String)(implicit ec: ExecutionContext): FirebaseDatabase =
     fromServiceAccountKey(new FileInputStream(path), baseUrl)
 
   /**
@@ -380,7 +393,7 @@ object FirebaseDatabase {
     * @param baseUrl the base URL of the database
     * @return a FirebaseDatabase
     */
-  def fromServiceAccountKey(file: File, baseUrl: String): FirebaseDatabase =
+  def fromServiceAccountKey(file: File, baseUrl: String)(implicit ec: ExecutionContext): FirebaseDatabase =
     fromServiceAccountKey(new FileInputStream(file), baseUrl)
 
   /**
@@ -390,7 +403,7 @@ object FirebaseDatabase {
     * @param baseUrl     the base URL of the database
     * @return a FirebaseDatabase
     */
-  def fromServiceAccountKey(inputStream: InputStream, baseUrl: String): FirebaseDatabase =
+  def fromServiceAccountKey(inputStream: InputStream, baseUrl: String)(implicit ec: ExecutionContext): FirebaseDatabase =
     new FirebaseDatabase(
       FirebaseApp.initializeApp(
         new FirebaseOptions.Builder()
@@ -414,7 +427,7 @@ object FirebaseDatabase {
     *
     * @return a [[FirebaseDatabase]]
     */
-  def apply(config: Config): FirebaseDatabase =
+  def apply(config: Config)(implicit ec: ExecutionContext): FirebaseDatabase =
     fromConfig(config)
 
   /**
@@ -435,7 +448,7 @@ object FirebaseDatabase {
             privateKey: String,
             clientEmail: String,
             clientId: String,
-            clientX509CertUrl: String): FirebaseDatabase = {
+            clientX509CertUrl: String)(implicit ec: ExecutionContext): FirebaseDatabase = {
 
     val firebaseConfiguration =
       Json.obj(
