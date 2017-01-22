@@ -30,6 +30,20 @@ abstract class JsonDocumentStorageSpec(val db: DocumentStorage[JsValue],
 
     }
 
+    "read an optional value" in {
+
+      val someResult =
+        db.getOpt(testBucketName, "item", "foo").await
+
+      assert(someResult.get.as[Int] == 645)
+
+      val emptyResult =
+        db.getOpt(testBucketName, "other").await
+
+      assert(emptyResult.isEmpty)
+
+    }
+
     "push to an array" in {
 
       db.append(testBucketName, "item", "bar")(JsString("item1")).await
