@@ -396,7 +396,8 @@ object FirebaseDatabase {
         new FirebaseOptions.Builder()
           .setServiceAccount(inputStream)
           .setDatabaseUrl(baseUrl)
-          .build()
+          .build(),
+        UUID.randomUUID().toString
       )
     )
 
