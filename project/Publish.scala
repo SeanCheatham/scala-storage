@@ -16,7 +16,7 @@ object Publish {
       publishArtifact in Test := false,
       pomIncludeRepository := { _ => false },
       licenses := Seq("Apache 2.0" -> url("https://opensource.org/licenses/Apache-2.0")),
-      homepage := Some(url("http://github.com/seancheatham/scala-graph")),
+      homepage := Some(url("http://github.com/seancheatham/scala-storage-wrappers")),
       pomExtra :=
         <scm>
           <url>git@github.com:seancheatham/scala-storage-wrappers.git</url>
