@@ -15,7 +15,8 @@ This library is written in Scala.  It _might_ interoperate with other JVM langua
 This library uses Typesafe's Play JSON library for serialization of content.  I hope to support other mechanisms at some point.
 
 ## Include the library in your project.
-### TODO
+In your build.sbt:
+`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.0.2"`
 
 ## Connect to a Database
 ### Firebase
