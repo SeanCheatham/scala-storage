@@ -26,6 +26,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   */
 class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsValue] {
 
+  import FirebaseDatabase.{JsHelper, KeyHelper, anyToJson, jsonToAny}
   import com.google.firebase.database.{FirebaseDatabase => GFirebaseDatabase}
 
   /**
@@ -44,7 +45,7 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
               case Some(value) =>
                 p success value
               case _ =>
-                p failure new NoSuchElementException
+                p failure new NoSuchElementException(key.keyify)
             }
 
           def onCancelled(databaseError: DatabaseError): Unit =
@@ -82,6 +83,9 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
+    //      .flatMap(_ =>
+    //        testValue(key.keyify, _ contains value)
+    //      )
   }
 
   def merge(key: String*)(value: JsValue)(implicit ec: ExecutionContext): Future[_] = {
@@ -102,6 +106,7 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
         def onFailure(e: Exception): Unit =
           p failure e
       })
+    // TODO: Test value to ensure changes took place
     p.future
   }
 
@@ -118,6 +123,7 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
+    //      .flatMap(_ => testValue(key.keyify, _.isEmpty))
   }
 
   def append(key: String*)(value: JsValue)(implicit ec: ExecutionContext): Future[String] = {
@@ -136,6 +142,10 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
           p failure e
       })
     p.future
+    //      .flatMap(id =>
+    //        testValue(key.keyify + "/" + id, _ contains value)
+    //          .map(_ => id)
+    //      )
   }
 
   /**
@@ -310,78 +320,6 @@ class FirebaseDatabase(private val app: FirebaseApp) extends DocumentStorage[JsV
             .removeEventListener(kv._1)
       )
 
-  implicit class KeyHelper(key: Seq[String]) {
-    def keyify: String =
-      key mkString "/"
-  }
-
-  implicit class JsHelper(v: JsValue) {
-    def toOption: Option[JsValue] =
-      v match {
-        case JsNull =>
-          None
-        case x =>
-          Some(x)
-      }
-  }
-
-  /**
-    * Converts a value returned by Firebase into a [[JsValue]]
-    *
-    * @param any The value returned by Firebase
-    * @return a JsValue
-    */
-  private def anyToJson(any: Any): JsValue =
-    any match {
-      case null =>
-        JsNull
-      case v: Double =>
-        JsNumber(v)
-      case v: Long =>
-        JsNumber(v)
-      case s: String =>
-        JsString(s)
-      case v: Boolean =>
-        JsBoolean(v)
-      case v: java.util.HashMap[String@unchecked, _] =>
-        import scala.collection.JavaConverters._
-        JsObject(v.asScala.mapValues(anyToJson))
-      case v: java.util.ArrayList[_] =>
-        import scala.collection.JavaConverters._
-        JsArray(v.asScala.map(anyToJson))
-    }
-
-  /**
-    * Converts the given [[JsValue]] into a consumable format by the Firebase API
-    *
-    * @param json The JSON value to convert
-    * @return a value consumable by the Firebase API
-    */
-  private def jsonToAny(json: JsValue): Any =
-    json match {
-      case JsNull =>
-        null
-      case v: JsNumber =>
-        val long =
-          v.value.longValue()
-        val double =
-          v.value.doubleValue()
-        if (long == double)
-          long
-        else
-          double
-      case v: JsString =>
-        v.value
-      case v: JsBoolean =>
-        v.value
-      case v: JsArray =>
-        import scala.collection.JavaConverters._
-        v.value.toVector.map(jsonToAny).asJava
-      case v: JsObject =>
-        import scala.collection.JavaConverters._
-        v.value.mapValues(jsonToAny).asJava
-    }
-
 }
 
 
@@ -516,5 +454,77 @@ object FirebaseDatabase {
 
     fromServiceAccountKey(inputStream, baseUrl)
   }
+
+  implicit class KeyHelper(key: Seq[String]) {
+    def keyify: String =
+      key mkString "/"
+  }
+
+  implicit class JsHelper(v: JsValue) {
+    def toOption: Option[JsValue] =
+      v match {
+        case JsNull =>
+          None
+        case x =>
+          Some(x)
+      }
+  }
+
+  /**
+    * Converts a value returned by Firebase into a [[JsValue]]
+    *
+    * @param any The value returned by Firebase
+    * @return a JsValue
+    */
+  def anyToJson(any: Any): JsValue =
+    any match {
+      case null =>
+        JsNull
+      case v: Double =>
+        JsNumber(v)
+      case v: Long =>
+        JsNumber(v)
+      case s: String =>
+        JsString(s)
+      case v: Boolean =>
+        JsBoolean(v)
+      case v: java.util.HashMap[String@unchecked, _] =>
+        import scala.collection.JavaConverters._
+        JsObject(v.asScala.mapValues(anyToJson))
+      case v: java.util.ArrayList[_] =>
+        import scala.collection.JavaConverters._
+        JsArray(v.asScala.map(anyToJson))
+    }
+
+  /**
+    * Converts the given [[JsValue]] into a consumable format by the Firebase API
+    *
+    * @param json The JSON value to convert
+    * @return a value consumable by the Firebase API
+    */
+  def jsonToAny(json: JsValue): Any =
+    json match {
+      case JsNull =>
+        null
+      case v: JsNumber =>
+        val long =
+          v.value.longValue()
+        val double =
+          v.value.doubleValue()
+        if (long == double)
+          long
+        else
+          double
+      case v: JsString =>
+        v.value
+      case v: JsBoolean =>
+        v.value
+      case v: JsArray =>
+        import scala.collection.JavaConverters._
+        v.value.toVector.map(jsonToAny).asJava
+      case v: JsObject =>
+        import scala.collection.JavaConverters._
+        v.value.mapValues(jsonToAny).asJava
+    }
 
 }
