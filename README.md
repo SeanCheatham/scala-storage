@@ -16,7 +16,7 @@ This library uses Typesafe's Play JSON library for serialization of content.  I 
 
 ## Include the library in your project.
 In your build.sbt:
-`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.1.1"`
+`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.1.2"`
 
 ## Connect to a Database
 ### Firebase
@@ -50,21 +50,11 @@ val writeFuture: Future[_] =
 ```scala
 val userId = "1"
 val readFuture: Future[String] = 
-  db.get("users", userId, "firstName")
+  db.get("users", userId, "firstName") // References /users/1/firstName
     .map(_.as[String])
 ```
 
 If the value doesn't exist, the Future will fail with a `NoSuchElementException`
-```scala
-val readFuture: Future[String] = ???
-// Don't block like this in your code; this is just for demonstration
-Await.ready(readFuture, Duration.Inf).value.flatMap {
-   case Success(v) => Some(v)
-   case Failure(_: NoSuchElementException) => None
-   case _ => None
-}
-```
-
 Alternatively, if you know the value is generally optional, you can _lift_ it instead.
 ```scala
 val readOptionalFuture: Future[Option[JsValue]] =
