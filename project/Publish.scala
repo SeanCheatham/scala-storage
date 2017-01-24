@@ -19,9 +19,9 @@ object Publish {
       homepage := Some(url("http://github.com/seancheatham/scala-storage-wrappers")),
       pomExtra :=
         <scm>
-          <url>git@github.com:seancheatham/scala-storage-wrappers.git</url>
-          <connection>scm:git:git@github.com:scala-storage-wrappers.git</connection>
-          <developerConnection>scm:git:git@github.com:scala-storage-wrappers.git</developerConnection>
+          <url>git@github.com:seancheatham/scala-storage.git</url>
+          <connection>scm:git:git@github.com:seancheatham/scala-storage.git</connection>
+          <developerConnection>scm:git:git@github.com:seancheatham/scala-storage.git</developerConnection>
         </scm>
           <developers>
             <developer>
