@@ -52,4 +52,9 @@ object Dependencies {
       "com.google.firebase" % "firebase-admin" % "4.0.3"
     )
 
+  val googleCloudStorage =
+    Seq(
+      "com.google.cloud" % "google-cloud-storage" % "0.8.1-beta"
+    )
+
 }

@@ -11,8 +11,6 @@ import scala.util.Failure
 abstract class JsonDocumentStorageSpec(val db: DocumentStorage[JsValue],
                                        val testBucketName: String = "test_bucket_12435624572457625") extends WordSpec {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   "A Document Database" can {
 
     "write a single value" in {

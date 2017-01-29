@@ -35,3 +35,14 @@ lazy val firebase =
           Dependencies.firebase
     )
     .dependsOn(core % "compile->compile;test->test")
+
+lazy val googleCloudStorage =
+  project
+    .in(file("googleCloudStorage"))
+    .settings(commonSettings: _*)
+    .settings(
+      name := "storage-google-cloud",
+      libraryDependencies ++=
+        Dependencies.googleCloudStorage
+    )
+    .dependsOn(core % "compile->compile;test->test")
