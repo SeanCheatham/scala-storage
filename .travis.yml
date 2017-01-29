@@ -12,7 +12,7 @@ branches:
   - master
 before_install:
 - openssl aes-256-cbc -K $encrypted_7f5d77cd5a01_key -iv $encrypted_7f5d77cd5a01_iv
-  -in googleCloudStorage.json.enc -out /tmp/google_cloud_credentials.json -d
+  -in continuousIntegrationStorage.json.enc -out /tmp/google_cloud_credentials.json -d
 - openssl aes-256-cbc -K $encrypted_7f5d77cd5a01_key -iv $encrypted_7f5d77cd5a01_iv
   -in firebase.json.enc -out /tmp/firebase_credentials.json -d
 env:
