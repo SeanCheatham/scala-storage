@@ -13,7 +13,7 @@ lazy val scalaStorage =
     .in(file("."))
     .settings(commonSettings: _*)
     .settings(packagedArtifacts := Map.empty)
-    .aggregate(core, firebase)
+    .aggregate(core, firebase, googleCloudStorage)
 
 lazy val core =
   project
