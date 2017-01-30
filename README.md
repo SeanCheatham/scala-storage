@@ -16,7 +16,12 @@ This library uses Typesafe's Play JSON library for serialization of content.  I 
 
 ## Include the library in your project.
 In your build.sbt:
-`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.1.2"`
+
+### Firebase
+`libraryDependencies += "com.seancheatham" %% "storage-firebase" % "0.1.3"`
+
+### Google Cloud Storage
+`libraryDependencies += "com.seancheatham" %% "storage-google-cloud" % "0.1.3"`
 
 ## Connect to a Database
 ### Firebase
@@ -102,6 +107,48 @@ val mergeFuture: Future[_] =
 val userId = "1"
 val deleteFuture: Future[_] = 
   db.delete("users", userId, "lastName")
+```
+
+## Connect to a File Store
+### Google Cloud Storage
+* Setup a [Service Account](https://console.developers.google.com/permissions/serviceaccounts)
+* Generate/Download a new Private Key
+* Store the key as you see fit, depending on your environment setup.  Just remember the path to it.
+```scala
+// You will need to provide an ExecutionContext.  If you have one, use it, otherwise, you can use this:
+import scala.concurrent.ExecutionContext.Implicits.global
+
+import com.seancheatham.storage.gcloud.GoogleCloudStorage
+val storage: GoogleCloudStorage =
+    GoogleCloudStorage("PROJECT_ID", "/path/to/key.json")
+```
+
+## Write a File
+Write or overwrite the file at a key path.  For bucket-based storage systems, like Google Cloud Storage, the first item in the key path represents the bucket.
+```scala
+val storage: BinaryStorage = ???
+val bytes: Iterator[Byte] = ???
+val future: Future[_] =
+  storage.write("BUCKET_NAME", "photos", "picture.jpg")(bytes)
+```
+
+## Read a File
+```scala
+val readFuture: Future[Iterator[Byte]] = 
+  storage.get("BUCKET_NAME", "photos", "picture.jpg")
+```
+
+If the file doesn't exist, the Future will fail with a `NoSuchElementException`
+Alternatively, if you know the value is generally optional, you can _lift_ it instead.
+```scala
+val readOptionalFuture: Future[Option[Iterator[Byte]]] =
+    storage.lift("BUCKET_NAME", "photos", "picture.jpg")
+```
+
+## Delete a File
+```scala
+val deleteFuture: Future[_] = 
+  storage.delete("BUCKET_NAME", "photos", "picture.jpg")
 ```
 
 ## FIREBASE ONLY:
